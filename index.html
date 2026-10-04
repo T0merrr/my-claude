@@ -371,12 +371,20 @@
       ],
       tx: [
         { id:"seed-flights", date:"2026-06-01", amount:3500, currency:"ILS", category:"Flights", country:"Pre-trip / Flights", note:"Flights (booked)" }
-      ]
+      ],
+      pending: emptyPending()
     };
   }
+  // Changes made on this device that the cloud hasn't confirmed yet. Kept in
+  // localStorage so nothing is lost if the page closes while offline.
+  function emptyPending(){ return { add:{}, del:{}, settings:0, rates:false, dropLegacy:false }; }
+  function normPending(p){ return Object.assign(emptyPending(), p||{}); }
 
   // ---------- state load / migrate ----------
+  let hadLocalData = false;
+  try { hadLocalData = !!(localStorage.getItem(STORE_KEY) || localStorage.getItem(STORE_V1)); } catch(e){}
   let state = load();
+  state.pending = normPending(state.pending);
   function load(){
     try {
       const base = defaultState();
@@ -414,10 +422,17 @@
       seenSeed = true; return true;
     }).map(t=>({ ...t, id: t.id || uid() }));
   }
-  function saveLocal(){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+  function saveLocal(){ try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch(e){} }
 
-  // commit = local save + render + push to cloud (user-initiated change)
-  function commit(){ state.updatedAt = Date.now(); saveLocal(); render(); pushCloud(); }
+  // commit = local save + render + upload queued changes (user-initiated change)
+  function commit(){ state.updatedAt = Date.now(); saveLocal(); render(); updateCloudStatus(); scheduleFlush(); }
+  function addTx(t){ state.tx.push(t); state.pending.add[t.id]=t; commit(); }
+  function deleteTx(id){
+    state.tx=state.tx.filter(x=>x.id!==id);
+    delete state.pending.add[id]; state.pending.del[id]=Date.now();
+    commit();
+  }
+  function settingsChanged(){ state.pending.settings=(state.pending.settings||0)+1; commit(); }
 
   // ---------- money helpers ----------
   function toILS(amount, currency){
@@ -579,7 +594,7 @@
       <td class="amt"><button class="danger" data-del="${t.id}">✕</button></td>
     </tr>`).join("");
     body.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{
-      state.tx=state.tx.filter(x=>x.id!==b.getAttribute("data-del")); commit();
+      deleteTx(b.getAttribute("data-del"));
     }));
   }
 
@@ -615,11 +630,11 @@
     e.preventDefault();
     const amount=parseFloat(el("f-amount").value);
     if(!(amount>0)) return;
-    state.tx.push({ id:uid(), date:el("f-date").value||todayStr(), amount,
+    const t={ id:uid(), date:el("f-date").value||todayStr(), amount,
       currency:el("f-currency").value, category:el("f-category").value,
-      country:el("f-country").value, note:el("f-note").value.trim() });
+      country:el("f-country").value, note:el("f-note").value.trim() };
     el("f-amount").value=""; el("f-note").value="";
-    updateConvertHint(); commit();
+    addTx(t); updateConvertHint();
   });
   el("f-amount").addEventListener("input",updateConvertHint);
   el("f-currency").addEventListener("change",()=>{ const c=el("f-currency").value; const m=state.countries.find(x=>x.currency===c); if(m) el("f-country").value=m.name; updateConvertHint(); });
@@ -635,7 +650,7 @@
     bDlg.showModal();
   });
   el("b-cancel").addEventListener("click",()=>bDlg.close());
-  el("b-save").addEventListener("click",()=>{ const b=parseFloat(el("d-budget").value); if(b>=0)state.budget=b; bDlg.close(); commit(); });
+  el("b-save").addEventListener("click",()=>{ const b=parseFloat(el("d-budget").value); if(b>=0)state.budget=b; bDlg.close(); settingsChanged(); });
 
   // ---------- countries dialog ----------
   const cDlg=el("countries-dlg");
@@ -679,7 +694,7 @@
   el("btn-countries").addEventListener("click",()=>{ drawCountryRows(JSON.parse(JSON.stringify(state.countries))); cDlg.showModal(); });
   el("c-add").addEventListener("click",()=>{ const arr=readCountryRows(); arr.push({id:uid(),name:"New",flag:"📍",currency:"USD",start:"",end:"",alloc:0}); drawCountryRows(arr); });
   el("c-cancel").addEventListener("click",()=>cDlg.close());
-  el("c-save").addEventListener("click",()=>{ state.countries=readCountryRows(); cDlg.close(); refreshCountrySelect(); commit(); });
+  el("c-save").addEventListener("click",()=>{ state.countries=readCountryRows(); cDlg.close(); refreshCountrySelect(); settingsChanged(); });
 
   // ---------- export / reset ----------
   el("btn-export").addEventListener("click",()=>{
@@ -695,7 +710,12 @@
   });
   el("btn-reset").addEventListener("click",()=>{
     if(confirm("Reset everything to defaults? This deletes all expenses (cloud copy too, if connected).")){
-      state=defaultState(); saveLocal(); fillSelects(); render(); pushCloud();
+      const now=Date.now(), oldIds=state.tx.map(t=>t.id);
+      state=defaultState();
+      oldIds.forEach(id=>{ state.pending.del[id]=now; });
+      state.tx.forEach(t=>{ delete state.pending.del[t.id]; state.pending.add[t.id]=t; });
+      state.pending.settings=1; state.pending.rates=true;
+      fillSelects(); commit();
     }
   });
 
@@ -709,7 +729,7 @@
       let changed=false;
       RATE_CCYS.forEach(c=>{ if(j.rates[c]){ state.rates[c]=roundRate(1/j.rates[c]); changed=true; } });
       state.rates.ILS=1; state.ratesUpdated=Date.now();
-      if(changed){ saveLocal(); if(manual){ state.updatedAt=Date.now(); pushCloud(); } }
+      if(changed){ if(manual) state.pending.rates=true; saveLocal(); if(manual) scheduleFlush(); }
       render(); updateConvertHint();
     }catch(e){
       renderRatesStatus();
@@ -719,8 +739,15 @@
   el("btn-rates").addEventListener("click",()=>fetchRates(true));
 
   // ---------- cloud sync (Firebase compat, works from file://) ----------
+  // One Firestore doc per Sync Code. Each expense is its own entry in the
+  // `txMap` field and is written with a merge, so two devices adding expenses
+  // at the same time never overwrite each other. Deletions leave a tombstone in
+  // `deleted` so an expense removed on one device can't be resurrected by
+  // another. Anything changed here is queued in state.pending until the cloud
+  // confirms it, so offline edits upload as soon as there's a connection.
   const FB="https://www.gstatic.com/firebasejs/10.12.2/";
-  let docRef=null, unsub=null, applying=false, pushTimer=null;
+  const SYNC_V="tripBudget.sync2";   // set once this device's old data has been merged in
+  let docRef=null, unsub=null, syncCode="", knowsCloud=false, connecting=false, flushing=false, flushTimer=null;
   const cloudDlg=el("cloud-dlg");
 
   function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>rej(new Error("Failed to load "+src)); document.head.appendChild(s); }); }
@@ -731,59 +758,168 @@
     el("cloud-status").textContent=msg;
     el("btn-cloud").textContent= on ? "Cloud settings" : "Set up cloud sync";
   }
-
-  function cloudStateForWrite(){
-    return { schema:SCHEMA, budget:state.budget, rates:state.rates, ratesUpdated:state.ratesUpdated,
-      countries:state.countries, tx:state.tx, updatedAt:state.updatedAt };
+  function pendingCount(){
+    const p=state.pending;
+    return Object.keys(p.add).length+Object.keys(p.del).length+(p.settings?1:0);
   }
+  function updateCloudStatus(){
+    if(!docRef) return;
+    const n=pendingCount();
+    if(!n) return setCloudStatus(true,"Synced ✓ · code “"+syncCode+"”");
+    const what=n+" change"+(n===1?"":"s");
+    setCloudStatus(true, navigator.onLine===false
+      ? "Offline — "+what+" saved on this device, will upload when online"
+      : "Uploading "+what+"…");
+  }
+
+  // Plain JSON copies: Firestore rejects `undefined` values.
+  function clean(v){ return JSON.parse(JSON.stringify(v)); }
+  function cleanTx(t){
+    return clean({ id:t.id, date:t.date||"", amount:+t.amount||0, currency:t.currency||"ILS",
+      category:t.category||"Other", country:t.country||"Other", note:t.note||"" });
+  }
+  const isSeedLike=t=>t && t.category==="Flights" && +t.amount===3500 && t.currency==="ILS";
+
+  // All expenses the cloud doc knows about, including the old `tx` array that
+  // earlier versions of this app wrote (still written by any stale copy).
+  function remoteTxMap(d){
+    const map=Object.assign({}, (d&&d.txMap)||{}), deleted=(d&&d.deleted)||{};
+    if(d && Array.isArray(d.tx)) d.tx.forEach(t=>{ if(t&&t.id&&!map[t.id]) map[t.id]=t; });
+    Object.keys(deleted).forEach(id=>delete map[id]);
+    return map;
+  }
+
   function applyRemote(d){
     if(!d) return;
-    if(d.updatedAt && state.updatedAt && d.updatedAt<=state.updatedAt) return;
-    applying=true;
-    state.budget=d.budget??state.budget;
-    state.rates=Object.assign({},DEFAULT_RATES,d.rates||state.rates);
-    state.ratesUpdated=d.ratesUpdated||state.ratesUpdated;
-    state.countries=d.countries||state.countries;
-    state.tx=d.tx||state.tx;
-    state.schema=d.schema||state.schema;
-    state.updatedAt=d.updatedAt||Date.now();
-    saveLocal(); refreshCountrySelect(); render();
-    applying=false;
+    const p=state.pending;
+    // Fold a legacy array into txMap (and drop the array) on the next upload.
+    if(Array.isArray(d.tx)){
+      const deleted=d.deleted||{}, known=d.txMap||{};
+      d.tx.forEach(t=>{ if(t&&t.id&&!known[t.id]&&!deleted[t.id]&&!p.del[t.id]) p.add[t.id]=t; });
+      p.dropLegacy=true; scheduleFlush();
+    }
+    const map=remoteTxMap(d), deleted=d.deleted||{};
+    // An expense this device already had that vanished from the cloud without a
+    // delete tombstone was wiped by a stale copy of the app saving over the
+    // whole doc — put it back rather than lose it.
+    if(knowsCloud) state.tx.forEach(t=>{
+      if(t && t.id && !map[t.id] && !deleted[t.id] && !p.del[t.id] && !p.add[t.id]){ p.add[t.id]=t; scheduleFlush(); }
+    });
+    knowsCloud=true;
+    Object.keys(p.add).forEach(id=>{ map[id]=p.add[id]; });
+    Object.keys(p.del).forEach(id=>{ delete map[id]; });
+    state.tx=Object.values(map);
+    if(!p.settings){
+      if(d.budget!=null) state.budget=d.budget;
+      if(Array.isArray(d.countries) && d.countries.length) state.countries=d.countries;
+    }
+    if(d.rates && (d.ratesUpdated||0)>(state.ratesUpdated||0)){
+      state.rates=Object.assign({},DEFAULT_RATES,d.rates); state.ratesUpdated=d.ratesUpdated;
+    }
+    saveLocal(); refreshCountrySelect(); render(); updateCloudStatus();
   }
-  function pushCloud(){
-    if(!docRef||applying) return;
-    clearTimeout(pushTimer);
-    pushTimer=setTimeout(()=>{ docRef.set(cloudStateForWrite()).catch(err=>console.warn("cloud push failed",err)); },400);
+
+  // First time this device runs the new sync: anything it has locally that the
+  // cloud never got (because the old sync dropped it) gets queued for upload.
+  function firstMerge(d){
+    if(!d){ state.tx.forEach(t=>{ state.pending.add[t.id]=t; }); state.pending.settings=1; state.pending.rates=true; return; }
+    if(!hadLocalData) return;
+    const remote=remoteTxMap(d), deleted=d.deleted||{};
+    const remoteHasSeed=Object.values(remote).some(isSeedLike);
+    state.tx.forEach(t=>{
+      if(!t.id || remote[t.id] || deleted[t.id]) return;
+      if(isSeedLike(t) && remoteHasSeed) return;   // same pre-booked flights row, different id
+      state.pending.add[t.id]=t;
+    });
+  }
+
+  function scheduleFlush(delay){
+    clearTimeout(flushTimer);
+    flushTimer=setTimeout(flush, delay==null?300:delay);
+  }
+  async function flush(){
+    if(!docRef || flushing) return;
+    const p=state.pending;
+    const sentAdd=Object.assign({},p.add), sentDel=Object.assign({},p.del);
+    const sentSettings=p.settings, sentRates=p.rates, sentLegacy=p.dropLegacy;
+    const addIds=Object.keys(sentAdd), delIds=Object.keys(sentDel);
+    if(!addIds.length && !delIds.length && !sentSettings && !sentRates && !sentLegacy) return updateCloudStatus();
+    const FV=firebase.firestore.FieldValue, payload={ updatedAt:Date.now() };
+    if(addIds.length || delIds.length) payload.txMap={};
+    addIds.forEach(id=>{ payload.txMap[id]=cleanTx(sentAdd[id]); });
+    if(delIds.length){
+      payload.deleted={};
+      delIds.forEach(id=>{ payload.txMap[id]=FV.delete(); payload.deleted[id]=sentDel[id]; });
+    }
+    if(sentSettings){ payload.schema=SCHEMA; payload.budget=state.budget; payload.countries=clean(state.countries); }
+    if(sentRates){ payload.rates=clean(state.rates); payload.ratesUpdated=state.ratesUpdated||0; }
+    if(sentLegacy) payload.tx=FV.delete();
+    flushing=true; updateCloudStatus();
+    try{
+      await docRef.set(payload,{merge:true});
+      // Only clear what was sent — newer edits made meanwhile stay queued.
+      addIds.forEach(id=>{ if(p.add[id]===sentAdd[id]) delete p.add[id]; });
+      delIds.forEach(id=>{ if(p.del[id]===sentDel[id]) delete p.del[id]; });
+      if(p.settings===sentSettings) p.settings=0;
+      if(sentRates) p.rates=false;
+      if(sentLegacy) p.dropLegacy=false;
+      saveLocal();
+      flushing=false;
+      if(pendingCount()||p.rates||p.dropLegacy) scheduleFlush(); else updateCloudStatus();
+    }catch(err){
+      flushing=false;
+      console.warn("cloud upload failed",err);
+      setCloudStatus(false,"Upload failed — "+(err.message||err)+" · changes are kept on this device, retrying");
+      scheduleFlush(15000);
+    }
   }
 
   async function connectCloud(config, code){
-    await loadScript(FB+"firebase-app-compat.js");
-    await Promise.all([loadScript(FB+"firebase-firestore-compat.js"), loadScript(FB+"firebase-auth-compat.js")]);
-    if(!firebase.apps.length) firebase.initializeApp(config);
-    await firebase.auth().signInAnonymously();
-    const db=firebase.firestore();
-    docRef=db.collection("budgets").doc(code);
-    const snap=await docRef.get();
-    if(snap.exists){
-      const d=snap.data();
-      if((d.schema||0) < SCHEMA){
-        // Cloud copy predates the current itinerary. Keep every logged expense
-        // (the phone may have added some), but adopt the new budget + legs.
-        applying=true;
-        if(Array.isArray(d.tx) && d.tx.length) state.tx = dedupeTx(d.tx);
-        state.schema=SCHEMA; state.updatedAt=Date.now();
-        saveLocal(); refreshCountrySelect(); render();
-        applying=false;
-        await docRef.set(cloudStateForWrite());
-      } else {
-        applyRemote(d);
-      }
+    if(!window.firebase || !firebase.firestore){
+      await loadScript(FB+"firebase-app-compat.js");
+      await Promise.all([loadScript(FB+"firebase-firestore-compat.js"), loadScript(FB+"firebase-auth-compat.js")]);
     }
-    else { await docRef.set(cloudStateForWrite()); }
-    if(unsub) unsub();
-    unsub=docRef.onSnapshot(s=>{ if(s.metadata.hasPendingWrites) return; if(s.exists) applyRemote(s.data()); });
-    setCloudStatus(true,"Synced ✓ · code “"+code+"”");
+    if(!firebase.apps.length) firebase.initializeApp(config);
+    if(!firebase.auth().currentUser) await firebase.auth().signInAnonymously();
+    const ref=firebase.firestore().collection("budgets").doc(code);
+    const snap=await ref.get();
+    const d=snap.exists?snap.data():null;
+    if(unsub){ unsub(); unsub=null; }
+    docRef=ref; syncCode=code;
+    knowsCloud = localStorage.getItem(SYNC_V)===code;
+    if(!knowsCloud){
+      firstMerge(d);
+      saveLocal();
+      try{ localStorage.setItem(SYNC_V,code); }catch(e){}
+    }
+    // Cloud copy predates the current itinerary: publish this device's budget + legs.
+    if(d && (d.schema||0)<SCHEMA) state.pending.settings=state.pending.settings||1;
+    if(d) applyRemote(d);
+    unsub=docRef.onSnapshot(s=>{ if(s.exists) applyRemote(s.data()); },
+      err=>setCloudStatus(false,"Sync error — "+(err.message||err)));
+    updateCloudStatus();
+    flush();
   }
+  // (Re)connect with the saved settings, or the baked-in default.
+  function autoConnect(){
+    if(docRef || connecting) return;
+    const saved=getCloudCfg()||DEFAULT_CLOUD;
+    connecting=true;
+    setCloudStatus(null,"Connecting to cloud…");
+    connectCloud(saved.config,saved.code)
+      .then(()=>{ try{ localStorage.setItem(CLOUD_KEY,JSON.stringify(saved)); }catch(e){} })
+      .catch(e=>{
+        const n=pendingCount();
+        setCloudStatus(false,"Not connected — "+(e.message||e)+(n?" · "+n+" change"+(n===1?"":"s")+" saved on this device":""));
+      })
+      .finally(()=>{ connecting=false; });
+  }
+  window.addEventListener("online",()=>{ if(docRef) flush(); else autoConnect(); });
+  window.addEventListener("offline",updateCloudStatus);
+  document.addEventListener("visibilitychange",()=>{
+    if(document.visibilityState!=="visible") return;
+    if(docRef) flush(); else autoConnect();
+  });
 
   el("btn-cloud").addEventListener("click",()=>{
     const cfg=getCloudCfg()||DEFAULT_CLOUD;
@@ -796,7 +932,7 @@
   });
   el("cl-cancel").addEventListener("click",()=>cloudDlg.close());
   el("cl-disconnect").addEventListener("click",()=>{
-    localStorage.removeItem(CLOUD_KEY); if(unsub){unsub();unsub=null;} docRef=null;
+    localStorage.removeItem(CLOUD_KEY); if(unsub){unsub();unsub=null;} docRef=null; knowsCloud=false;
     setCloudStatus(null,"Cloud sync not set up"); cloudDlg.close();
   });
   el("cl-connect").addEventListener("click",async()=>{
@@ -821,12 +957,9 @@
   fillSelects();
   render();
   fetchRates(false);
-  // auto-connect cloud: use saved settings, else the baked-in default
-  const saved=getCloudCfg()||DEFAULT_CLOUD;
-  setCloudStatus(null,"Connecting to cloud…");
-  connectCloud(saved.config,saved.code)
-    .then(()=>{ localStorage.setItem(CLOUD_KEY,JSON.stringify(saved)); })
-    .catch(e=>setCloudStatus(false,"Cloud connect failed — "+(e.message||e)));
+  autoConnect();
+  // Safety net in case an upload got stuck (e.g. flaky hotel wifi).
+  setInterval(()=>{ if(docRef) flush(); else autoConnect(); }, 60000);
 })();
 </script>
 </body>
