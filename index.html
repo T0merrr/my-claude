@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Trip Budget · ID · AU · NZ · Fiji · PH</title>
+<style>
+  :root {
+    --bg: #0c0e1a;
+    --panel: #161a2b;
+    --panel-2: #1e2440;
+    --line: #2e3658;
+    --text: #eef1fb;
+    --muted: #9aa3c7;
+    --accent: #6d8bff;
+    --accent-2: #b06dff;
+    --good: #2fe0a6;
+    --warn: #ffc24d;
+    --bad: #ff5f8a;
+    --shadow: 0 8px 30px rgba(0,0,0,.45);
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background:
+      radial-gradient(900px 500px at 88% -12%, rgba(176,109,255,.22) 0%, transparent 60%),
+      radial-gradient(1000px 600px at 0% 0%, rgba(109,139,255,.18) 0%, transparent 55%),
+      radial-gradient(800px 700px at 50% 120%, rgba(47,224,166,.10) 0%, transparent 60%),
+      var(--bg);
+    background-attachment: fixed;
+    color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
+  header.top { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; flex-wrap:wrap; }
+  .brand h1 { font-size: 22px; margin: 0; letter-spacing: .3px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .brand p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  .flags { font-size: 20px; letter-spacing: 2px; }
+
+  .grid { display: grid; gap: 16px; }
+  .cards { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 880px) { .cards { grid-template-columns: repeat(2,1fr); } }
+  @media (max-width: 520px) { .cards { grid-template-columns: 1fr; } }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); }
+  .card .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
+  .card .value { font-size: 26px; font-weight: 700; margin-top: 8px; }
+  .card .sub { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  .value.good { color: var(--good); } .value.warn { color: var(--warn); } .value.bad { color: var(--bad); }
+
+  .bar-wrap { margin: 16px 0 6px; background: var(--panel); border:1px solid var(--line); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); }
+  .bar-head { display:flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .bar-head b { font-size: 15px; } .bar-head span { color: var(--muted); font-size: 13px; }
+  .progress { height: 16px; background: var(--panel-2); border-radius: 999px; overflow: hidden; border:1px solid var(--line); }
+  .progress > i { display:block; height:100%; width:0; background: linear-gradient(90deg, var(--good), #5fd6a6); transition: width .4s ease; }
+  .progress.warn > i { background: linear-gradient(90deg, var(--warn), #ffd27a); }
+  .progress.bad  > i { background: linear-gradient(90deg, var(--bad), #ff8a8a); }
+
+  /* status strips */
+  .strip { display:flex; align-items:center; gap:12px; flex-wrap:wrap; background: var(--panel); border:1px solid var(--line); border-radius: 12px; padding: 10px 14px; margin-top:12px; font-size:13px; }
+  .dot { width:9px; height:9px; border-radius:50%; background: var(--muted); flex:none; }
+  .dot.on { background: var(--good); box-shadow:0 0 0 3px rgba(54,201,142,.18); }
+  .dot.off { background: var(--bad); }
+  .strip .grow { flex:1 1 auto; }
+  .strip code { background: var(--panel-2); padding:2px 8px; border-radius:6px; border:1px solid var(--line); }
+
+  .section { margin-top: 26px; }
+  .section h2 { font-size: 15px; text-transform: uppercase; letter-spacing:.6px; color: var(--muted); margin: 0 0 12px; }
+
+  .panel { background: var(--panel); border:1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .panel .pad { padding: 18px; }
+
+  form.add { display:grid; grid-template-columns: .9fr .8fr .8fr 1fr 1fr 1.3fr auto; gap: 10px; align-items:end; }
+  @media (max-width: 900px){ form.add { grid-template-columns: 1fr 1fr; } }
+  label.f { display:flex; flex-direction:column; gap:6px; font-size:12px; color: var(--muted); }
+  input, select, button { font: inherit; }
+  input, select { background: var(--panel-2); border:1px solid var(--line); color: var(--text); border-radius: 10px; padding: 10px 12px; outline:none; width:100%; }
+  input:focus, select:focus { border-color: var(--accent); }
+  button { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color:#fff; border:none; border-radius: 10px; padding: 11px 16px; font-weight:600; cursor:pointer; white-space:nowrap; box-shadow: 0 4px 14px rgba(109,139,255,.35); }
+  button:hover { filter: brightness(1.1); }
+  button.ghost { background: var(--panel-2); border:1px solid var(--line); color: var(--text); box-shadow:none; }
+  button.ghost:hover { border-color: var(--accent); }
+  button.sm { padding:7px 12px; font-size:13px; }
+  button.danger { background: transparent; color: var(--bad); border:1px solid var(--line); padding:6px 10px; box-shadow:none; }
+  .hint { color: var(--muted); font-size: 12px; margin-top:8px; }
+
+  /* country cards */
+  .countries { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 880px){ .countries { grid-template-columns: repeat(2,1fr); } }
+  @media (max-width: 560px){ .countries { grid-template-columns: 1fr; } }
+  .cc { background: var(--panel); border:1px solid var(--line); border-radius: var(--radius); padding:16px; box-shadow:var(--shadow); position:relative; }
+  .cc.current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), var(--shadow); }
+  .cc .now { position:absolute; top:12px; right:12px; font-size:10px; text-transform:uppercase; letter-spacing:.5px; color:var(--accent); border:1px solid var(--accent); border-radius:999px; padding:2px 7px; }
+  .cc h3 { margin:0 0 2px; font-size:16px; } .cc .dates { color:var(--muted); font-size:12px; margin-bottom:12px; }
+  .cc .nums { display:flex; justify-content:space-between; font-size:13px; margin-bottom:8px; }
+  .cc .nums b { font-variant-numeric: tabular-nums; }
+  .cc .rem.bad { color:var(--bad); } .cc .rem.warn { color:var(--warn); } .cc .rem.good { color:var(--good); }
+  .cc .ccdaily { color:var(--muted); font-size:12px; margin-top:8px; }
+
+  table { width:100%; border-collapse: collapse; }
+  th, td { text-align:left; padding: 11px 12px; border-bottom:1px solid var(--line); font-size: 14px; }
+  th { color: var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.5px; }
+  td.amt { text-align:right; font-variant-numeric: tabular-nums; white-space:nowrap; }
+  tr:last-child td { border-bottom: none; }
+  .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-size:12px; background: var(--panel-2); border:1px solid var(--line); }
+
+  .break-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px dashed var(--line); font-size:14px; }
+  .break-row:last-child { border-bottom:none; }
+  .break-bar { height:8px; border-radius:999px; background: var(--panel-2); overflow:hidden; margin-top:4px; }
+  .break-bar > i { display:block; height:100%; background: var(--accent); }
+
+  .toolbar { display:flex; gap:8px; flex-wrap:wrap; }
+  .empty { color: var(--muted); text-align:center; padding: 30px; font-size:14px; }
+  dialog { background: var(--panel); color:var(--text); border:1px solid var(--line); border-radius: var(--radius); padding:0; box-shadow: var(--shadow); max-width:560px; width:94%; }
+  dialog::backdrop { background: rgba(0,0,0,.55); }
+  .dlg-pad { padding: 22px; max-height:80vh; overflow:auto; }
+  .dlg-pad h3 { margin:0 0 6px; }
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .muted { color: var(--muted); } .tiny { font-size:12px; }
+  textarea { width:100%; min-height:90px; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:10px; padding:10px 12px; font:inherit; resize:vertical; }
+  .ctable input { padding:7px 9px; font-size:13px; }
+  .ctable td { padding:6px 6px; border-bottom:1px solid var(--line); }
+  .ok { color: var(--good); } .err { color: var(--bad); }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <h1>Trip Budget Tracker</h1>
+      <p>Indonesia → Australia → New Zealand → Fiji → Philippines · departs DPS Oct 3</p>
+    </div>
+    <div class="flags">🇮🇩 🇦🇺 🇳🇿 🇫🇯 🇵🇭</div>
+  </header>
+
+  <!-- Summary cards -->
+  <div class="grid cards">
+    <div class="card" id="card-budget">
+      <div class="label">Total Budget</div>
+      <div class="value" id="c-budget">—</div>
+      <div class="sub">click to edit budget</div>
+    </div>
+    <div class="card">
+      <div class="label">Spent</div>
+      <div class="value" id="c-spent">—</div>
+      <div class="sub" id="c-spent-sub"></div>
+    </div>
+    <div class="card">
+      <div class="label">Remaining</div>
+      <div class="value" id="c-remaining">—</div>
+      <div class="sub" id="c-remaining-sub"></div>
+    </div>
+    <div class="card">
+      <div class="label">Daily Allowance</div>
+      <div class="value" id="c-daily">—</div>
+      <div class="sub" id="c-daily-sub"></div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="bar-wrap">
+    <div class="bar-head">
+      <b id="bar-pct">0% of budget used</b>
+      <span id="bar-text"></span>
+    </div>
+    <div class="progress" id="progress"><i id="progress-fill"></i></div>
+  </div>
+
+  <!-- Cloud + rates strips -->
+  <div class="strip">
+    <span class="dot" id="cloud-dot"></span>
+    <span id="cloud-status">Cloud sync not set up</span>
+    <span class="grow"></span>
+    <button class="ghost sm" id="btn-cloud">Set up cloud sync</button>
+  </div>
+  <div class="strip">
+    <span>💱</span>
+    <span id="rates-status">Loading exchange rates…</span>
+    <span class="grow"></span>
+    <button class="ghost sm" id="btn-rates">Refresh rates</button>
+  </div>
+
+  <!-- Add expense -->
+  <div class="section">
+    <h2>Add Expense</h2>
+    <div class="panel"><div class="pad">
+      <form class="add" id="add-form">
+        <label class="f">Date <input type="date" id="f-date" required /></label>
+        <label class="f">Amount <input type="number" id="f-amount" step="0.01" min="0" placeholder="0.00" required /></label>
+        <label class="f">Currency <select id="f-currency"></select></label>
+        <label class="f">Country <select id="f-country"></select></label>
+        <label class="f">Category <select id="f-category"></select></label>
+        <label class="f">Note (optional) <input type="text" id="f-note" placeholder="e.g. Opera House tour" /></label>
+        <button type="submit">Add</button>
+      </form>
+      <div class="hint" id="convert-hint"></div>
+    </div></div>
+  </div>
+
+  <!-- Per-country budgets -->
+  <div class="section">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2 style="margin:0">Budget by Country</h2>
+      <button class="ghost sm" id="btn-countries">Edit countries</button>
+    </div>
+    <div class="grid countries" id="countries" style="margin-top:12px"></div>
+  </div>
+
+  <!-- Category breakdown -->
+  <div class="section">
+    <h2>By Category</h2>
+    <div class="panel"><div class="pad"><div id="by-category"></div></div></div>
+  </div>
+
+  <!-- Transactions -->
+  <div class="section">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2 style="margin:0">Transactions</h2>
+      <div class="toolbar">
+        <button class="ghost sm" id="btn-export">Export CSV</button>
+        <button class="ghost sm" id="btn-reset">Reset all</button>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:12px; overflow:hidden;">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Country</th><th>Category</th><th>Note</th>
+          <th class="amt">Original</th><th class="amt">₪ (ILS)</th><th></th>
+        </tr></thead>
+        <tbody id="tx-body"></tbody>
+      </table>
+      <div class="empty" id="tx-empty" style="display:none">No expenses yet. Add your first one above.</div>
+    </div>
+  </div>
+
+  <p class="hint" style="margin-top:24px">
+    Exchange rates from <a href="https://open.er-api.com" target="_blank" rel="noopener">ExchangeRate-API</a> (free, auto-updated).
+    Set up cloud sync to share data live between your phone and laptop.
+  </p>
+</div>
+
+<!-- Budget dialog -->
+<dialog id="budget-dlg"><div class="dlg-pad">
+  <h3>Edit total budget</h3>
+  <label class="f" style="margin-top:12px">Total budget (₪ ILS)
+    <input type="number" id="d-budget" step="1" min="0" /></label>
+  <p class="tiny muted" id="alloc-note" style="margin-top:12px"></p>
+  <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
+    <button class="ghost" id="b-cancel" type="button">Cancel</button>
+    <button id="b-save" type="button">Save</button>
+  </div>
+</div></dialog>
+
+<!-- Countries dialog -->
+<dialog id="countries-dlg"><div class="dlg-pad">
+  <h3>Edit countries &amp; allocations</h3>
+  <p class="tiny muted">Set each leg's dates and how much of your budget (₪) you allot to it. <b>Last day</b> is inclusive — the final day you're in that country. The currency auto-picks the country when you add an expense.</p>
+  <table class="ctable" style="margin-top:10px"><thead><tr>
+    <th>Name</th><th>Cur</th><th>Arrive</th><th>Last day</th><th>₪ Alloc</th><th></th>
+  </tr></thead><tbody id="c-rows"></tbody></table>
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+    <button class="ghost sm" id="c-add" type="button">+ Add country</button>
+    <span class="tiny muted" id="c-sum"></span>
+  </div>
+  <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:18px;">
+    <button class="ghost" id="c-cancel" type="button">Cancel</button>
+    <button id="c-save" type="button">Save</button>
+  </div>
+</div></dialog>
+
+<!-- Cloud dialog -->
+<dialog id="cloud-dlg"><div class="dlg-pad">
+  <h3>Cloud sync (Firebase)</h3>
+  <p class="tiny muted">One-time setup. Your data live-syncs between any device that uses the same Firebase config + Sync Code.</p>
+  <ol class="tiny muted" style="padding-left:18px; line-height:1.7">
+    <li>Go to <a href="https://console.firebase.google.com" target="_blank" rel="noopener">console.firebase.google.com</a> → <b>Add project</b> (any name).</li>
+    <li>In the project: <b>Build → Firestore Database → Create database</b> (Start in <b>test mode</b> is fine to begin).</li>
+    <li><b>Build → Authentication → Get started → Anonymous → Enable</b>.</li>
+    <li>Project settings (⚙️) → <b>Your apps</b> → add a <b>Web app</b> (&lt;/&gt;). Copy the <code>firebaseConfig</code> object and paste it below.</li>
+  </ol>
+  <label class="f" style="margin-top:8px">Paste firebaseConfig (the { ... } object)
+    <textarea id="cl-config" placeholder='{ "apiKey": "...", "authDomain": "...", "projectId": "...", ... }'></textarea>
+  </label>
+  <label class="f" style="margin-top:10px">Sync Code (same code on every device)
+    <input type="text" id="cl-code" placeholder="e.g. tomer-trip-2026-x9f3" />
+  </label>
+  <div class="tiny" id="cl-msg" style="margin-top:10px; min-height:18px;"></div>
+  <div style="display:flex; gap:10px; justify-content:space-between; margin-top:18px;">
+    <button class="ghost sm" id="cl-disconnect" type="button" style="visibility:hidden">Disconnect</button>
+    <div style="display:flex; gap:10px;">
+      <button class="ghost" id="cl-cancel" type="button">Close</button>
+      <button id="cl-connect" type="button">Connect</button>
+    </div>
+  </div>
+</div></dialog>
+
+<script>
+(function(){
+  "use strict";
+
+  const STORE_KEY  = "tripBudget.v2";
+  const STORE_V1   = "tripBudget.v1";
+  const CLOUD_KEY  = "tripBudget.cloud";   // {config, code}
+
+  // Pre-configured cloud sync (baked in so it auto-connects with no setup).
+  // Use the SAME app file + same sync code on your phone to sync live.
+  const DEFAULT_CLOUD = {
+    config: {
+      apiKey: "AIzaSyAxt0ySK3V0RWjv7ichpTsbHOlO7UXWSOw",
+      authDomain: "trip-spending-tracker.firebaseapp.com",
+      projectId: "trip-spending-tracker",
+      storageBucket: "trip-spending-tracker.firebasestorage.app",
+      messagingSenderId: "864477171931",
+      appId: "1:864477171931:web:f30fbf30ee12bdaf2a3cfe"
+    },
+    code: "tomer-trip-2026"
+  };
+
+  const CURRENCIES = {
+    ILS: { symbol:"₪",   label:"ILS ₪ (Shekel)",        dp:2 },
+    IDR: { symbol:"Rp",  label:"IDR Rp (Indonesia)",    dp:0 },
+    AUD: { symbol:"A$",  label:"AUD A$ (Australia)",    dp:2 },
+    NZD: { symbol:"NZ$", label:"NZD NZ$ (New Zealand)", dp:2 },
+    FJD: { symbol:"FJ$", label:"FJD FJ$ (Fiji)",        dp:2 },
+    PHP: { symbol:"₱",   label:"PHP ₱ (Philippines)",   dp:2 },
+    USD: { symbol:"US$", label:"USD US$",               dp:2 },
+  };
+  const RATE_CCYS = ["IDR","AUD","NZD","FJD","PHP","USD"];
+  const CATEGORIES = ["Flights","Accommodation","Food & Drink","Transport","Activities","Shopping","Fees & Insurance","Other"];
+  const DEFAULT_RATES = { ILS:1, IDR:0.000222, AUD:2.06, NZD:1.70, FJD:1.35, PHP:0.0484, USD:2.92 };
+
+  const SCHEMA = 3;   // bump when the default itinerary/budget shape changes
+
+  function uid(){ return Math.random().toString(36).slice(2,10); }
+  // Format from LOCAL parts — toISOString() would shift the date back a day for
+  // anyone east of UTC (e.g. Israel, and every country on this trip).
+  function ymd(dt){
+    return dt.getFullYear() + "-" +
+      String(dt.getMonth()+1).padStart(2,"0") + "-" +
+      String(dt.getDate()).padStart(2,"0");
+  }
+  function todayStr(){ return ymd(new Date()); }
+  function addDays(d, n){
+    const dt = new Date(d + "T00:00:00");
+    dt.setDate(dt.getDate() + n);
+    return ymd(dt);
+  }
+  // exclusive `end` -> inclusive last day, for display/editing
+  function lastDay(end){ return end ? addDays(end, -1) : ""; }
+  function endFromLastDay(d){ return d ? addDays(d, 1) : ""; }
+
+  // NOTE: `end` is EXCLUSIVE (the day you leave / next leg begins), so legs tile
+  // with no gaps. The UI always shows the inclusive last day instead.
+  function defaultState(){
+    return {
+      schema: SCHEMA,
+      budget: 55000,
+      rates: { ...DEFAULT_RATES },
+      ratesUpdated: 0,
+      updatedAt: Date.now(),
+      countries: [
+        { id:uid(), name:"Pre-trip / Flights", flag:"✈️", currency:"ILS", start:"",           end:"2026-10-03", alloc:3500 },
+        { id:uid(), name:"Indonesia",          flag:"🇮🇩", currency:"IDR", start:"2026-10-03", end:"2026-11-05", alloc:8000 },
+        { id:uid(), name:"Australia",          flag:"🇦🇺", currency:"AUD", start:"2026-11-05", end:"2026-12-20", alloc:22000 },
+        { id:uid(), name:"New Zealand",        flag:"🇳🇿", currency:"NZD", start:"2026-12-20", end:"2027-01-08", alloc:9000 },
+        { id:uid(), name:"Fiji",               flag:"🇫🇯", currency:"FJD", start:"2027-01-08", end:"2027-01-19", alloc:5000 },
+        { id:uid(), name:"Philippines",        flag:"🇵🇭", currency:"PHP", start:"2027-01-19", end:"2027-02-13", alloc:7500 },
+      ],
+      tx: [
+        { id:"seed-flights", date:"2026-06-01", amount:3500, currency:"ILS", category:"Flights", country:"Pre-trip / Flights", note:"Flights (booked)" }
+      ]
+    };
+  }
+
+  // ---------- state load / migrate ----------
+  let state = load();
+  function load(){
+    try {
+      const base = defaultState();
+      const raw = localStorage.getItem(STORE_KEY);
+      if (raw){
+        const s = JSON.parse(raw);
+        // Older schema: keep the logged spending, adopt the new budget + itinerary.
+        if ((s.schema||0) < SCHEMA){
+          if (Array.isArray(s.tx) && s.tx.length) base.tx = dedupeTx(s.tx);
+          if (s.ratesUpdated) { base.rates = Object.assign({}, DEFAULT_RATES, s.rates||{}); base.ratesUpdated = s.ratesUpdated; }
+          return base;
+        }
+        s.rates = Object.assign({}, DEFAULT_RATES, s.rates||{});
+        s.tx = s.tx || []; s.countries = s.countries || base.countries;
+        s.updatedAt = s.updatedAt || Date.now();
+        return s;
+      }
+      // migrate from v1 if present
+      const v1 = localStorage.getItem(STORE_V1);
+      if (v1){
+        const old = JSON.parse(v1);
+        if (Array.isArray(old.tx) && old.tx.length) base.tx = dedupeTx(old.tx);
+      }
+      return base;
+    } catch(e){ return defaultState(); }
+  }
+  // Collapse duplicate copies of the original seeded flights row (it used to get a
+  // random id on every load, so migrating could otherwise double-count it).
+  function dedupeTx(list){
+    let seenSeed = false;
+    return list.filter(t=>{
+      const isSeed = t.category==="Flights" && +t.amount===3500 && t.currency==="ILS";
+      if (!isSeed) return true;
+      if (seenSeed) return false;
+      seenSeed = true; return true;
+    }).map(t=>({ ...t, id: t.id || uid() }));
+  }
+  function saveLocal(){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+
+  // commit = local save + render + push to cloud (user-initiated change)
+  function commit(){ state.updatedAt = Date.now(); saveLocal(); render(); pushCloud(); }
+
+  // ---------- money helpers ----------
+  function toILS(amount, currency){
+    const r = state.rates[currency] != null ? state.rates[currency] : 1;
+    return amount * r;
+  }
+  function fmtILS(n){ return "₪" + Math.round(n).toLocaleString("en-US"); }
+  function fmtCur(amount, currency){
+    const c = CURRENCIES[currency] || { symbol: currency+" ", dp:2 };
+    return c.symbol + Number(amount).toLocaleString("en-US",{maximumFractionDigits: c.dp==null?2:c.dp});
+  }
+  // Keep ~6 significant digits so tiny-unit currencies (IDR ≈ 0.00022) don't get
+  // flattened to zero by fixed-decimal rounding.
+  function roundRate(v){
+    if(!isFinite(v) || v<=0) return v;
+    const mag = Math.floor(Math.log10(Math.abs(v)));
+    return +v.toFixed(Math.min(12, Math.max(2, 5 - mag)));
+  }
+  function fmtRate(v){
+    if(v==null) return "?";
+    return v>=0.1 ? (+v.toFixed(4)).toString() : (+v.toPrecision(3)).toString();
+  }
+  // For tiny-unit currencies, quoting per-1000 reads far better than per-unit.
+  function rateBlurb(ccy){
+    const r = state.rates[ccy];
+    if(r==null) return "";
+    if(r >= 0.01) return `1 ${ccy} = ₪${fmtRate(r)}`;
+    // Tiny-unit currency (IDR): per-unit reads as ₪0, so quote per 10,000.
+    return `10,000 ${ccy} = ₪${(r*10000).toFixed(2)}`;
+  }
+  function daysBetween(a,b){ return Math.round((new Date(b)-new Date(a))/86400000); }
+  const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  function fmtDate(d){
+    if(!d) return "—";
+    const p = d.split("-");
+    return (+p[2]) + " " + MON[(+p[1])-1] + " " + p[0].slice(2);
+  }
+  function totalSpent(){ return state.tx.reduce((s,t)=> s + toILS(t.amount,t.currency), 0); }
+  function spentForCountry(name){
+    return state.tx.filter(t=>t.country===name).reduce((s,t)=> s+toILS(t.amount,t.currency), 0);
+  }
+  function el(id){ return document.getElementById(id); }
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
+  function timeAgo(ts){
+    if(!ts) return "never";
+    const s=Math.floor((Date.now()-ts)/1000);
+    if(s<60) return "just now";
+    if(s<3600) return Math.floor(s/60)+"m ago";
+    if(s<86400) return Math.floor(s/3600)+"h ago";
+    return Math.floor(s/86400)+"d ago";
+  }
+
+  function currentCountry(){
+    const t = todayStr();
+    return state.countries.find(c=>(!c.start || t>=c.start) && (!c.end || t<c.end));
+  }
+  function countryForDate(d){
+    return (state.countries.find(c=>(!c.start || d>=c.start) && (!c.end || d<c.end)) || {}).name || "Other";
+  }
+
+  // ---------- render ----------
+  function render(){
+    const spent = totalSpent();
+    const remaining = state.budget - spent;
+    const pct = state.budget>0 ? (spent/state.budget)*100 : 0;
+
+    el("c-budget").textContent = fmtILS(state.budget);
+    el("c-spent").textContent = fmtILS(spent);
+    el("c-spent-sub").textContent = state.tx.length + " transaction" + (state.tx.length===1?"":"s");
+
+    const remEl = el("c-remaining");
+    remEl.textContent = fmtILS(remaining);
+    remEl.className = "value " + (remaining<0?"bad":remaining<state.budget*0.15?"warn":"good");
+    el("c-remaining-sub").textContent = remaining<0 ? "over budget!" : Math.max(0,Math.round(100-pct))+"% left";
+
+    // overall daily allowance across the whole trip window (derived, not hardcoded)
+    const tripStart = state.countries.reduce((m,c)=> c.start && (!m || c.start<m) ? c.start : m, "");
+    const tripEnd   = state.countries.reduce((m,c)=> c.end && c.end>m ? c.end : m, "");
+    const today = todayStr();
+    const daysLeft = tripEnd ? daysBetween(today<tripStart?tripStart:today, tripEnd) : 0;
+    const dEl = el("c-daily");
+    if (daysLeft>0){
+      const daily = remaining/daysLeft;
+      dEl.textContent = fmtILS(daily); dEl.className = "value " + (daily<0?"bad":"");
+      el("c-daily-sub").textContent = "for ~"+daysLeft+" days on the road";
+    } else { dEl.textContent="—"; dEl.className="value"; el("c-daily-sub").textContent="trip window passed"; }
+
+    el("bar-pct").textContent = Math.round(pct)+"% of budget used";
+    const toGo = tripStart && today<tripStart ? daysBetween(today,tripStart) : 0;
+    el("bar-text").textContent = fmtILS(spent)+" / "+fmtILS(state.budget)
+      + (toGo>0 ? "  ·  ✈️ "+toGo+" day"+(toGo===1?"":"s")+" to departure" : "");
+    el("progress-fill").style.width = Math.min(100,Math.max(0,pct))+"%";
+    el("progress").className = "progress " + (pct>=100?"bad":pct>=85?"warn":"");
+
+    renderCountries();
+    renderCategory();
+    renderTx();
+    renderRatesStatus();
+  }
+
+  function renderCountries(){
+    const host = el("countries");
+    const cur = currentCountry();
+    const today = todayStr();
+    host.innerHTML = state.countries.map(c=>{
+      const spent = spentForCountry(c.name);
+      const rem = c.alloc - spent;
+      const p = c.alloc>0 ? (spent/c.alloc)*100 : 0;
+      const cls = rem<0?"bad":rem<c.alloc*0.15?"warn":"good";
+      const isNow = cur && cur.id===c.id;
+      const legDays = (c.start&&c.end)?daysBetween(c.start,c.end):0;
+      let daily="";
+      if (c.start&&c.end){
+        let dleft;
+        if (today<c.start) dleft=legDays;
+        else if (today>=c.end) dleft=0;
+        else dleft=daysBetween(today,c.end);
+        daily = dleft>0 ? "≈ "+fmtILS(rem/dleft)+"/day for "+dleft+" day"+(dleft===1?"":"s") : "leg finished";
+      }
+      const dates = (c.start?fmtDate(c.start):"—")+" → "+(c.end?fmtDate(lastDay(c.end)):"—")
+                  + (legDays?(" · "+legDays+" day"+(legDays===1?"":"s")):"");
+      return `<div class="cc ${isNow?"current":""}">
+        ${isNow?'<span class="now">here now</span>':''}
+        <h3>${c.flag||""} ${escapeHtml(c.name)}</h3>
+        <div class="dates">${escapeHtml(dates)}</div>
+        <div class="nums"><span class="muted">Spent</span><b>${fmtILS(spent)}</b></div>
+        <div class="nums"><span class="muted">Allotted</span><b>${fmtILS(c.alloc)}</b></div>
+        <div class="nums"><span class="muted">Left</span><b class="rem ${cls}">${fmtILS(rem)}</b></div>
+        <div class="progress ${p>=100?"bad":p>=85?"warn":""}" style="height:10px; margin-top:6px"><i style="width:${Math.min(100,Math.max(0,p))}%"></i></div>
+        ${daily?`<div class="ccdaily">${escapeHtml(daily)}</div>`:''}
+      </div>`;
+    }).join("");
+  }
+
+  function renderCategory(){
+    const map={};
+    state.tx.forEach(t=>{ const k=t.category||"Other"; map[k]=(map[k]||0)+toILS(t.amount,t.currency); });
+    const rows=Object.entries(map).sort((a,b)=>b[1]-a[1]);
+    const max=rows.length?rows[0][1]:1;
+    const host=el("by-category");
+    if(!rows.length){ host.innerHTML='<div class="muted tiny">No data yet.</div>'; return; }
+    host.innerHTML=rows.map(([k,v])=>`
+      <div class="break-row"><span>${escapeHtml(k)}</span><b>${fmtILS(v)}</b></div>
+      <div class="break-bar"><i style="width:${Math.max(3,(v/max)*100)}%"></i></div>`).join("");
+  }
+
+  function renderTx(){
+    const body=el("tx-body"), empty=el("tx-empty");
+    const rows=[...state.tx].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    if(!rows.length){ body.innerHTML=""; empty.style.display="block"; return; }
+    empty.style.display="none";
+    body.innerHTML=rows.map(t=>`<tr>
+      <td>${escapeHtml(t.date||"")}</td>
+      <td>${escapeHtml(t.country||"")}</td>
+      <td><span class="pill">${escapeHtml(t.category||"Other")}</span></td>
+      <td>${escapeHtml(t.note||"")}</td>
+      <td class="amt">${t.currency==="ILS"?"—":fmtCur(t.amount,t.currency)}</td>
+      <td class="amt">${fmtILS(toILS(t.amount,t.currency))}</td>
+      <td class="amt"><button class="danger" data-del="${t.id}">✕</button></td>
+    </tr>`).join("");
+    body.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{
+      state.tx=state.tx.filter(x=>x.id!==b.getAttribute("data-del")); commit();
+    }));
+  }
+
+  function renderRatesStatus(){
+    const parts = RATE_CCYS.map(c=>c+" "+fmtRate(state.rates[c]));
+    el("rates-status").textContent = "1 unit → ₪ · updated "+timeAgo(state.ratesUpdated)+" · "+parts.join("  ");
+  }
+
+  // ---------- form ----------
+  function fillSelects(){
+    el("f-currency").innerHTML=Object.entries(CURRENCIES).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join("");
+    el("f-currency").value="AUD";
+    el("f-category").innerHTML=CATEGORIES.map(c=>`<option>${c}</option>`).join("");
+    refreshCountrySelect();
+    el("f-date").value=todayStr();
+    updateConvertHint();
+  }
+  function refreshCountrySelect(){
+    const sel=el("f-country");
+    const prev=sel.value;
+    sel.innerHTML=state.countries.map(c=>`<option>${escapeHtml(c.name)}</option>`).join("")+`<option>Other</option>`;
+    // auto-pick by date
+    const auto=countryForDate(el("f-date").value||todayStr());
+    sel.value=(prev && [...sel.options].some(o=>o.value===prev))?prev:auto;
+  }
+  function updateConvertHint(){
+    const amt=parseFloat(el("f-amount").value), ccy=el("f-currency").value, hint=el("convert-hint");
+    if(!amt||ccy==="ILS"){ hint.textContent= ccy==="ILS"?"Entered directly in shekels.":"Enter an amount to see the shekel equivalent."; return; }
+    hint.textContent=`${fmtCur(amt,ccy)} ≈ ${fmtILS(toILS(amt,ccy))}  (${rateBlurb(ccy)})`;
+  }
+
+  el("add-form").addEventListener("submit",e=>{
+    e.preventDefault();
+    const amount=parseFloat(el("f-amount").value);
+    if(!(amount>0)) return;
+    state.tx.push({ id:uid(), date:el("f-date").value||todayStr(), amount,
+      currency:el("f-currency").value, category:el("f-category").value,
+      country:el("f-country").value, note:el("f-note").value.trim() });
+    el("f-amount").value=""; el("f-note").value="";
+    updateConvertHint(); commit();
+  });
+  el("f-amount").addEventListener("input",updateConvertHint);
+  el("f-currency").addEventListener("change",()=>{ const c=el("f-currency").value; const m=state.countries.find(x=>x.currency===c); if(m) el("f-country").value=m.name; updateConvertHint(); });
+  el("f-date").addEventListener("change",()=>{ el("f-country").value=countryForDate(el("f-date").value); });
+
+  // ---------- budget dialog ----------
+  const bDlg=el("budget-dlg");
+  el("card-budget").style.cursor="pointer";
+  el("card-budget").addEventListener("click",()=>{
+    el("d-budget").value=state.budget;
+    const sum=state.countries.reduce((s,c)=>s+(+c.alloc||0),0);
+    el("alloc-note").textContent="Sum of country allocations: "+fmtILS(sum)+(sum!==state.budget?(" (≠ total — adjust in Edit countries)"):" ✓");
+    bDlg.showModal();
+  });
+  el("b-cancel").addEventListener("click",()=>bDlg.close());
+  el("b-save").addEventListener("click",()=>{ const b=parseFloat(el("d-budget").value); if(b>=0)state.budget=b; bDlg.close(); commit(); });
+
+  // ---------- countries dialog ----------
+  const cDlg=el("countries-dlg");
+  function drawCountryRows(list){
+    const tb=el("c-rows");
+    tb.innerHTML=list.map((c,i)=>`<tr data-i="${i}" data-id="${escapeHtml(c.id||"")}">
+      <td><input data-k="name" value="${escapeHtml(c.name)}" style="min-width:120px"/></td>
+      <td><select data-k="currency">${Object.keys(CURRENCIES).map(k=>`<option ${k===c.currency?"selected":""}>${k}</option>`).join("")}</select></td>
+      <td><input data-k="start" type="date" value="${c.start||""}"/></td>
+      <td><input data-k="end" type="date" value="${lastDay(c.end)}"/></td>
+      <td><input data-k="alloc" type="number" min="0" value="${c.alloc||0}" style="width:90px"/></td>
+      <td><button class="danger" data-rm="${i}">✕</button></td>
+    </tr>`).join("");
+    tb.querySelectorAll("[data-rm]").forEach(b=>b.addEventListener("click",()=>{
+      const arr=readCountryRows(); arr.splice(+b.getAttribute("data-rm"),1); drawCountryRows(arr); updateSum();
+    }));
+    tb.querySelectorAll("input,select").forEach(inp=>inp.addEventListener("input",updateSum));
+    updateSum();
+  }
+  function readCountryRows(){
+    return [...el("c-rows").querySelectorAll("tr")].map(tr=>{
+      const g=k=>tr.querySelector(`[data-k="${k}"]`).value;
+      return { id:tr.getAttribute("data-id")||uid(), name:g("name").trim()||"Unnamed",
+        flag:flagFor(g("name")), currency:g("currency"),
+        start:g("start"), end:endFromLastDay(g("end")), alloc:parseFloat(g("alloc"))||0 };
+    });
+  }
+  function flagFor(name){
+    const n=(name||"").toLowerCase();
+    if(n.includes("indonesi")||n.includes("bali")) return "🇮🇩";
+    if(n.includes("austral")) return "🇦🇺"; if(n.includes("zealand")) return "🇳🇿";
+    if(n.includes("fiji")) return "🇫🇯"; if(n.includes("philip")) return "🇵🇭";
+    if(n.includes("thai")) return "🇹🇭"; if(n.includes("japan")) return "🇯🇵";
+    if(n.includes("singapor")) return "🇸🇬"; if(n.includes("viet")) return "🇻🇳";
+    if(n.includes("flight")||n.includes("pre")) return "✈️"; return "📍";
+  }
+  function updateSum(){
+    const sum=readCountryRows().reduce((s,c)=>s+c.alloc,0);
+    el("c-sum").textContent="Allocated: "+fmtILS(sum)+" / Budget "+fmtILS(state.budget)+(sum===state.budget?" ✓":"");
+  }
+  el("btn-countries").addEventListener("click",()=>{ drawCountryRows(JSON.parse(JSON.stringify(state.countries))); cDlg.showModal(); });
+  el("c-add").addEventListener("click",()=>{ const arr=readCountryRows(); arr.push({id:uid(),name:"New",flag:"📍",currency:"USD",start:"",end:"",alloc:0}); drawCountryRows(arr); });
+  el("c-cancel").addEventListener("click",()=>cDlg.close());
+  el("c-save").addEventListener("click",()=>{ state.countries=readCountryRows(); cDlg.close(); refreshCountrySelect(); commit(); });
+
+  // ---------- export / reset ----------
+  el("btn-export").addEventListener("click",()=>{
+    const header=["Date","Country","Category","Note","Amount","Currency","ILS"];
+    const lines=[header.join(",")];
+    [...state.tx].sort((a,b)=>(a.date||"").localeCompare(b.date||"")).forEach(t=>{
+      lines.push([t.date,t.country,t.category,t.note,t.amount,t.currency,Math.round(toILS(t.amount,t.currency))]
+        .map(v=>`"${String(v==null?"":v).replace(/"/g,'""')}"`).join(","));
+    });
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([lines.join("\n")],{type:"text/csv"}));
+    a.download="trip-expenses.csv"; a.click(); URL.revokeObjectURL(a.href);
+  });
+  el("btn-reset").addEventListener("click",()=>{
+    if(confirm("Reset everything to defaults? This deletes all expenses (cloud copy too, if connected).")){
+      state=defaultState(); saveLocal(); fillSelects(); render(); pushCloud();
+    }
+  });
+
+  // ---------- exchange rates ----------
+  async function fetchRates(manual){
+    el("rates-status").textContent="Fetching latest rates…";
+    try{
+      const r=await fetch("https://open.er-api.com/v6/latest/ILS");
+      const j=await r.json();
+      if(j.result!=="success"||!j.rates) throw new Error("bad response");
+      let changed=false;
+      RATE_CCYS.forEach(c=>{ if(j.rates[c]){ state.rates[c]=roundRate(1/j.rates[c]); changed=true; } });
+      state.rates.ILS=1; state.ratesUpdated=Date.now();
+      if(changed){ saveLocal(); if(manual){ state.updatedAt=Date.now(); pushCloud(); } }
+      render(); updateConvertHint();
+    }catch(e){
+      renderRatesStatus();
+      el("rates-status").textContent="Couldn't fetch rates (offline?) — using saved values · updated "+timeAgo(state.ratesUpdated);
+    }
+  }
+  el("btn-rates").addEventListener("click",()=>fetchRates(true));
+
+  // ---------- cloud sync (Firebase compat, works from file://) ----------
+  const FB="https://www.gstatic.com/firebasejs/10.12.2/";
+  let docRef=null, unsub=null, applying=false, pushTimer=null;
+  const cloudDlg=el("cloud-dlg");
+
+  function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=()=>rej(new Error("Failed to load "+src)); document.head.appendChild(s); }); }
+
+  function getCloudCfg(){ try{ return JSON.parse(localStorage.getItem(CLOUD_KEY)||"null"); }catch(e){ return null; } }
+  function setCloudStatus(on,msg){
+    el("cloud-dot").className="dot "+(on==null?"":on?"on":"off");
+    el("cloud-status").textContent=msg;
+    el("btn-cloud").textContent= on ? "Cloud settings" : "Set up cloud sync";
+  }
+
+  function cloudStateForWrite(){
+    return { schema:SCHEMA, budget:state.budget, rates:state.rates, ratesUpdated:state.ratesUpdated,
+      countries:state.countries, tx:state.tx, updatedAt:state.updatedAt };
+  }
+  function applyRemote(d){
+    if(!d) return;
+    if(d.updatedAt && state.updatedAt && d.updatedAt<=state.updatedAt) return;
+    applying=true;
+    state.budget=d.budget??state.budget;
+    state.rates=Object.assign({},DEFAULT_RATES,d.rates||state.rates);
+    state.ratesUpdated=d.ratesUpdated||state.ratesUpdated;
+    state.countries=d.countries||state.countries;
+    state.tx=d.tx||state.tx;
+    state.schema=d.schema||state.schema;
+    state.updatedAt=d.updatedAt||Date.now();
+    saveLocal(); refreshCountrySelect(); render();
+    applying=false;
+  }
+  function pushCloud(){
+    if(!docRef||applying) return;
+    clearTimeout(pushTimer);
+    pushTimer=setTimeout(()=>{ docRef.set(cloudStateForWrite()).catch(err=>console.warn("cloud push failed",err)); },400);
+  }
+
+  async function connectCloud(config, code){
+    await loadScript(FB+"firebase-app-compat.js");
+    await Promise.all([loadScript(FB+"firebase-firestore-compat.js"), loadScript(FB+"firebase-auth-compat.js")]);
+    if(!firebase.apps.length) firebase.initializeApp(config);
+    await firebase.auth().signInAnonymously();
+    const db=firebase.firestore();
+    docRef=db.collection("budgets").doc(code);
+    const snap=await docRef.get();
+    if(snap.exists){
+      const d=snap.data();
+      if((d.schema||0) < SCHEMA){
+        // Cloud copy predates the current itinerary. Keep every logged expense
+        // (the phone may have added some), but adopt the new budget + legs.
+        applying=true;
+        if(Array.isArray(d.tx) && d.tx.length) state.tx = dedupeTx(d.tx);
+        state.schema=SCHEMA; state.updatedAt=Date.now();
+        saveLocal(); refreshCountrySelect(); render();
+        applying=false;
+        await docRef.set(cloudStateForWrite());
+      } else {
+        applyRemote(d);
+      }
+    }
+    else { await docRef.set(cloudStateForWrite()); }
+    if(unsub) unsub();
+    unsub=docRef.onSnapshot(s=>{ if(s.metadata.hasPendingWrites) return; if(s.exists) applyRemote(s.data()); });
+    setCloudStatus(true,"Synced ✓ · code “"+code+"”");
+  }
+
+  el("btn-cloud").addEventListener("click",()=>{
+    const cfg=getCloudCfg()||DEFAULT_CLOUD;
+    el("cl-config").value=JSON.stringify(cfg.config,null,2);
+    el("cl-code").value=cfg.code;
+    const connected=!!docRef;
+    el("cl-disconnect").style.visibility=connected?"visible":"hidden";
+    el("cl-msg").innerHTML=connected?'<span class="ok">Connected & syncing.</span>':"";
+    cloudDlg.showModal();
+  });
+  el("cl-cancel").addEventListener("click",()=>cloudDlg.close());
+  el("cl-disconnect").addEventListener("click",()=>{
+    localStorage.removeItem(CLOUD_KEY); if(unsub){unsub();unsub=null;} docRef=null;
+    setCloudStatus(null,"Cloud sync not set up"); cloudDlg.close();
+  });
+  el("cl-connect").addEventListener("click",async()=>{
+    const msg=el("cl-msg"); msg.className="tiny"; msg.textContent="Connecting…";
+    let config;
+    try{
+      let raw=el("cl-config").value.trim().replace(/^const\s+firebaseConfig\s*=\s*/,"").replace(/;?\s*$/,"");
+      config=JSON.parse(raw.replace(/(['"])?([a-zA-Z0-9_]+)(['"])?\s*:/g,'"$2":').replace(/'/g,'"'));
+    }catch(e){ msg.className="tiny err"; msg.textContent="Couldn't parse the config — paste the whole { ... } object."; return; }
+    const code=el("cl-code").value.trim();
+    if(!code){ msg.className="tiny err"; msg.textContent="Pick a Sync Code (any text — use the same on every device)."; return; }
+    try{
+      await connectCloud(config,code);
+      localStorage.setItem(CLOUD_KEY,JSON.stringify({config,code}));
+      msg.className="tiny ok"; msg.textContent="Connected and syncing!";
+      el("cl-disconnect").style.visibility="visible";
+      setTimeout(()=>cloudDlg.close(),700);
+    }catch(e){ msg.className="tiny err"; msg.textContent="Connection failed: "+(e.message||e)+" — check the config, and that Firestore + Anonymous auth are enabled."; setCloudStatus(false,"Cloud sync error"); }
+  });
+
+  // ---------- init ----------
+  fillSelects();
+  render();
+  fetchRates(false);
+  // auto-connect cloud: use saved settings, else the baked-in default
+  const saved=getCloudCfg()||DEFAULT_CLOUD;
+  setCloudStatus(null,"Connecting to cloud…");
+  connectCloud(saved.config,saved.code)
+    .then(()=>{ localStorage.setItem(CLOUD_KEY,JSON.stringify(saved)); })
+    .catch(e=>setCloudStatus(false,"Cloud connect failed — "+(e.message||e)));
+})();
+</script>
+</body>
+</html>
