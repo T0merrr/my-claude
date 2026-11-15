@@ -1,0 +1,142 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0f1f17;
+  --color-paper: #ffffff;
+  --color-sand: #f4f1ea;
+  --color-brand: #0b5d33;
+  --color-brand-dark: #07401f;
+  /* Marker ages. All three pass 4.5:1 with white text. */
+  --color-fresh: #0a7a3a;
+  --color-today: #b93a08;
+  --color-older: #475569;
+  --color-line: #c9cfc9;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+:focus-visible {
+  outline: 3px solid #1d4ed8;
+  outline-offset: 2px;
+}
+
+/* ---- Leaflet ---- */
+
+.leaflet-container {
+  font-family: var(--font-sans);
+  background: #dfe9e2;
+}
+
+.koala-pin {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.koala-pin span {
+  transform: rotate(45deg);
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  line-height: 1;
+}
+.koala-pin.fresh { background: var(--color-fresh); }
+.koala-pin.today { background: var(--color-today); }
+.koala-pin.older { background: var(--color-older); }
+.koala-pin.gone { opacity: 0.45; }
+.koala-pin.selected {
+  outline: 4px solid #111;
+  outline-offset: 1px;
+}
+.koala-pin .tick {
+  position: absolute;
+  top: -11px;
+  right: -11px;
+  transform: rotate(45deg);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--color-fresh);
+  font-size: 13px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.4);
+}
+
+.koala-cluster {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--color-ink);
+  color: #fff;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 17px;
+}
+
+.you-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #1d4ed8;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 2px rgb(29 78 216 / 0.35), 0 1px 4px rgb(0 0 0 / 0.5);
+}
+
+.report-pin {
+  width: 40px;
+  height: 40px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: #b91c1c;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.5);
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.sheet-in { animation: sheet-up 0.18s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet-in { animation: none; }
+}
+
+/* Keep the map credit visible above the bottom buttons. */
+.main-map .leaflet-bottom {
+  bottom: 6.25rem;
+}
