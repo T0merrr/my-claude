@@ -249,6 +249,9 @@ export default function App() {
                 )}
               </div>
             )}
+            {!sending && online && waiting[0]?.lastError && (
+              <p className="mt-1 text-sm leading-snug">Last try failed: {waiting[0].lastError}</p>
+            )}
             {failed.map((r) => (
               <div key={r.id} className="mt-1 flex items-center justify-between gap-2">
                 <p className="text-base font-semibold leading-snug">A report couldn&apos;t be sent: {r.failed}</p>

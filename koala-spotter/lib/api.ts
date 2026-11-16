@@ -4,6 +4,7 @@ import { ensureDeviceId, getSupabase, PHOTO_BUCKET } from "./supabase";
 import {
   listQueue,
   markFailed,
+  noteRetry,
   removeFromQueue,
   type QueuedReport,
 } from "./queue";
@@ -36,6 +37,23 @@ export function isNetworkError(err: unknown): boolean {
   return /failed to fetch|networkerror|load failed|network request failed|fetch failed|timeout/i.test(
     msg,
   );
+}
+
+/** Setup problems on the server side, explained for whoever runs the site. */
+const SETUP_PROBLEMS: [RegExp, string][] = [
+  [/anonymous sign-?ins are disabled/i, "Anonymous sign-ins are turned off in Supabase (Authentication, Sign In / Providers)."],
+  [/bucket not found/i, "The photo storage bucket is missing. Run the database setup file in Supabase."],
+  [/could not find the function|schema cache/i, "The database setup file hasn't been run in Supabase, or didn't finish."],
+  [/invalid api key|invalid jwt|no api key|unauthorized/i, "The Supabase key in the site's settings is wrong."],
+];
+
+/** What to show while a report is waiting to be retried. */
+export function retryReason(err: unknown): string {
+  const raw = (err as { message?: string } | null)?.message ?? String(err);
+  if (errorCode(err) === "rate_limited") return FRIENDLY.rate_limited;
+  if (isNetworkError(err)) return "No connection, or the server couldn't be reached.";
+  const known = SETUP_PROBLEMS.find(([pattern]) => pattern.test(raw));
+  return known ? `${known[1]} (${raw})` : raw.slice(0, 200);
 }
 
 export function friendlyError(err: unknown): string {
@@ -145,6 +163,7 @@ export function flushQueue(): Promise<FlushResult> {
         } else {
           // No signal, rate limit or a server hiccup: keep it and try later.
           result.waiting++;
+          await noteRetry(report, retryReason(err));
           if (isNetworkError(err)) break;
         }
       }

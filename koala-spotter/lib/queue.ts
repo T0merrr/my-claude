@@ -24,6 +24,8 @@ export interface QueuedReport {
   cameraModel: string | null;
   /** Set when the server refused it for a reason retrying will not fix. */
   failed?: string;
+  /** Why the last attempt didn't go through, when it will be retried. */
+  lastError?: string;
 }
 
 const store = typeof indexedDB !== "undefined" ? createStore("maggie-koala", "outbox") : undefined;
@@ -44,4 +46,8 @@ export async function removeFromQueue(id: string): Promise<void> {
 
 export async function markFailed(report: QueuedReport, reason: string): Promise<void> {
   await set(report.id, { ...report, failed: reason }, store);
+}
+
+export async function noteRetry(report: QueuedReport, reason: string): Promise<void> {
+  await set(report.id, { ...report, lastError: reason }, store);
 }
