@@ -3,6 +3,7 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
+import { supabaseUrl } from "./supabase-url";
 
 export const ADMIN_COOKIE = "maggie_admin";
 export const PHOTO_BUCKET = "sighting-photos";
@@ -44,7 +45,7 @@ export async function isAdmin(): Promise<boolean> {
 
 /** Full-access client. Server only: never import this from a client file. */
 export function serviceClient() {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+  return createClient(supabaseUrl()!, process.env.SUPABASE_SERVICE_ROLE_KEY!.trim(), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

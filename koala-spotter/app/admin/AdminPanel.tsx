@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { supabaseUrl } from "@/lib/supabase-url";
 
 interface AdminSighting {
   id: string;
@@ -39,7 +40,7 @@ const TAB_LABEL: Record<Tab, string> = {
 };
 
 const photo = (path: string) =>
-  `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/sighting-photos/${path}`;
+  `${supabaseUrl()}/storage/v1/object/public/sighting-photos/${path}`;
 
 const isExpired = (s: AdminSighting) => Date.now() - new Date(s.captured_at).getTime() > 48 * 3600_000;
 

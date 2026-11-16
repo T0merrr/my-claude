@@ -1,11 +1,12 @@
 "use client";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { supabaseUrl } from "./supabase-url";
 
 export const PHOTO_BUCKET = "sighting-photos";
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const url = supabaseUrl();
+const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
 export const isConfigured = Boolean(url && anonKey);
 

@@ -44,6 +44,7 @@ const SETUP_PROBLEMS: [RegExp, string][] = [
   [/anonymous sign-?ins are disabled/i, "Anonymous sign-ins are turned off in Supabase (Authentication, Sign In / Providers)."],
   [/bucket not found/i, "The photo storage bucket is missing. Run the database setup file in Supabase."],
   [/could not find the function|schema cache/i, "The database setup file hasn't been run in Supabase, or didn't finish."],
+  [/invalid path specified/i, "The Supabase URL in the site's settings has extra text after .supabase.co."],
   [/invalid api key|invalid jwt|no api key|unauthorized/i, "The Supabase key in the site's settings is wrong."],
 ];
 
