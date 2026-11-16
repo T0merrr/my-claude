@@ -126,7 +126,7 @@ The repository root also contains an unrelated single-page app (`index.html`). S
 
 ## Before launch
 
-- **Rescue contacts.** `app/injured/page.tsx` has placeholders marked `PLACEHOLDER`. The page shows a red warning until they are replaced; remove the warning when you fill them in.
+- **Rescue contacts.** The numbers in `app/injured/page.tsx` were supplied by the site owner. Re-check them now and then.
 - **Map tiles.** The app uses the public OpenStreetMap tile server, which is fine for light use but has a usage policy and no uptime guarantee. If the app gets popular, switch `TILE_URL` in `lib/leaflet.ts` to a tile provider.
 - **Old photos.** After 48 hours a sighting leaves the map, but its photo file stays in the public bucket and is reachable by anyone who kept the link. The photo has no metadata in it.
 

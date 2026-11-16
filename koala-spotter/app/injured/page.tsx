@@ -3,11 +3,18 @@ import Link from "next/link";
 
 export const metadata: Metadata = { title: "Sick or injured koala · Maggie Koala Spotter" };
 
-// TODO before launch: replace every PLACEHOLDER below with real, checked
-// contact details for Magnetic Island wildlife rescue.
+// Supplied by the site owner, November 2026. Re-check these now and then.
 const CONTACTS = [
-  { name: "PLACEHOLDER: local koala hospital or wildlife carer", phone: "PLACEHOLDER: phone number", note: "PLACEHOLDER: opening hours" },
-  { name: "PLACEHOLDER: state wildlife rescue hotline", phone: "PLACEHOLDER: phone number", note: "PLACEHOLDER: hours, e.g. 24 hours" },
+  {
+    name: "Magnetic Island Koala Hospital",
+    phone: "0428 785 488",
+    note: "Koala rescue and care, based in Horseshoe Bay.",
+  },
+  {
+    name: "MI Wildlife Rescue Inc",
+    phone: "0457 634 732",
+    note: "Rescue for all native wildlife on the island.",
+  },
 ];
 
 export default function InjuredPage() {
@@ -18,17 +25,18 @@ export default function InjuredPage() {
       </Link>
       <h1 className="mt-2 text-3xl font-extrabold leading-tight">Found a sick or injured koala?</h1>
 
-      <p className="mt-4 rounded-xl border-2 border-dashed border-red-700 bg-red-50 px-3 py-2 text-base font-bold text-red-900">
-        The contact details on this page are placeholders and have not been filled in yet.
-      </p>
-
       <h2 className="mt-6 text-xl font-extrabold">Call for help</h2>
       <ul className="mt-2 space-y-3">
         {CONTACTS.map((c) => (
           <li key={c.name} className="rounded-xl border-2 border-ink p-3">
             <p className="text-lg font-bold">{c.name}</p>
-            <p className="text-lg">{c.phone}</p>
-            <p className="text-base">{c.note}</p>
+            <a
+              href={`tel:${c.phone.replace(/\s/g, "")}`}
+              className="mt-2 flex h-14 items-center justify-center rounded-xl bg-brand text-xl font-bold text-white"
+            >
+              Call {c.phone}
+            </a>
+            <p className="mt-2 text-base">{c.note}</p>
           </li>
         ))}
       </ul>
