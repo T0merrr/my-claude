@@ -360,6 +360,7 @@ export default function App() {
 
       {reportOpen && (
         <ReportSheet
+          knownPos={userPos}
           onClose={() => setReportOpen(false)}
           onQueued={() => {
             setReportOpen(false);

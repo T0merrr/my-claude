@@ -33,26 +33,47 @@ interface Draft {
   timeSource: Source;
 }
 
-function getPosition(): Promise<GeolocationPosition> {
+function positionOnce(options: PositionOptions): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     if (!("geolocation" in navigator)) {
       reject(new Error("unsupported"));
       return;
     }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      timeout: 12000,
-      maximumAge: 30000,
-    });
+    navigator.geolocation.getCurrentPosition(resolve, reject, options);
   });
+}
+
+/**
+ * Asks for a precise GPS fix first. If that is slow or unavailable (common
+ * under trees or just after unlocking the phone), settles for a rougher,
+ * slightly older position: the visitor confirms the pin anyway.
+ */
+async function getPosition(): Promise<GeolocationPosition> {
+  try {
+    return await positionOnce({ enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+  } catch (err) {
+    if ((err as GeolocationPositionError).code === 1) throw err; // permission denied
+    return await positionOnce({ enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 });
+  }
+}
+
+/** Where the phone is, from whichever source answers. */
+interface PhoneLocation {
+  /** A request already running since the report screen opened, if any. */
+  warm: Promise<GeolocationPosition> | null;
+  /** The "you are here" position from the main map, if it is showing. */
+  known: LatLng | null;
 }
 
 /** Photo GPS first, then the phone's GPS, then a pin placed by hand. */
 async function resolveLocation(
   exif: ProcessedPhoto["exif"],
   origin: Origin,
+  phone: PhoneLocation,
 ): Promise<Pick<Draft, "pos" | "locationSource" | "needsPin" | "locationNote">> {
-  let why = "This photo has no location saved in it.";
+  // Phones usually remove the location from photos they hand to a website,
+  // so on mobile this branch is rare and the phone's own GPS does the work.
+  let why = "Your phone didn't pass on this photo's location (phones often remove it for privacy).";
   if (exif.lat !== null && exif.lng !== null) {
     if (isOnIsland(exif.lat, exif.lng)) {
       return {
@@ -64,29 +85,42 @@ async function resolveLocation(
     }
     why = "The location saved in this photo isn't on Magnetic Island.";
   }
+
+  let here: LatLng | null = null;
+  let problem = "";
   try {
-    const p = await getPosition();
-    if (isOnIsland(p.coords.latitude, p.coords.longitude)) {
-      return {
-        pos: { lat: p.coords.latitude, lng: p.coords.longitude },
-        locationSource: "device",
-        needsPin: false,
-        locationNote:
-          origin === "camera"
-            ? "Using your phone's location. Drag the pin onto the koala's tree if it's off."
-            : `${why} Using where you are now. Drag the pin if the koala was somewhere else.`,
-      };
-    }
-    why = `${why} Your phone doesn't appear to be on the island either.`;
+    const p = await (phone.warm ?? getPosition()).catch((err) => {
+      // The early request failed; ask once more now unless it was refused.
+      if ((err as GeolocationPositionError).code === 1 || !phone.warm) throw err;
+      return getPosition();
+    });
+    here = { lat: p.coords.latitude, lng: p.coords.longitude };
   } catch (err) {
-    const code = (err as GeolocationPositionError).code;
-    why = code === 1 ? `${why} Location permission is off for this site.` : `${why} We couldn't get your phone's location.`;
+    problem =
+      (err as GeolocationPositionError).code === 1
+        ? "Location permission is off for this site."
+        : "We couldn't get your phone's location.";
+    here = phone.known;
   }
+
+  if (here && isOnIsland(here.lat, here.lng)) {
+    return {
+      pos: here,
+      locationSource: "device",
+      needsPin: false,
+      locationNote:
+        origin === "camera"
+          ? "Using your phone's location. Drag the pin onto the koala's tree if it's off."
+          : `${why} Using where you are now instead. Drag the pin if the koala was somewhere else.`,
+    };
+  }
+  if (here) problem = "Your phone doesn't appear to be on the island.";
+
   return {
     pos: { lat: ISLAND_CENTER[0], lng: ISLAND_CENTER[1] },
     locationSource: "manual",
     needsPin: true,
-    locationNote: `${why} Zoom in and drag the pin to where you saw the koala.`,
+    locationNote: `${why} ${problem} Zoom in and drag the pin to where you saw the koala.`,
   };
 }
 
@@ -103,11 +137,13 @@ function timeProblem(d: Date): string | null {
 }
 
 interface Props {
+  /** The visitor's position from the main map, when "Find me" is on. */
+  knownPos: LatLng | null;
   onClose: () => void;
   onQueued: () => void;
 }
 
-export default function ReportSheet({ onClose, onQueued }: Props) {
+export default function ReportSheet({ knownPos, onClose, onQueued }: Props) {
   const cameraInput = useRef<HTMLInputElement>(null);
   const libraryInput = useRef<HTMLInputElement>(null);
   const [working, setWorking] = useState(false);
@@ -119,6 +155,22 @@ export default function ReportSheet({ onClose, onQueued }: Props) {
   const [track, setTrack] = useState("");
   const [hint, setHint] = useState("");
   const [saving, setSaving] = useState(false);
+  const warm = useRef<Promise<GeolocationPosition> | null>(null);
+
+  // If location is already allowed, start finding the phone as soon as this
+  // screen opens. A GPS fix can take a while, and this way it is usually
+  // ready by the time the photo has been chosen.
+  useEffect(() => {
+    navigator.permissions
+      ?.query({ name: "geolocation" })
+      .then((status) => {
+        if (status.state === "granted" && !warm.current) {
+          warm.current = getPosition();
+          warm.current.catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -150,7 +202,7 @@ export default function ReportSheet({ onClose, onQueued }: Props) {
         timeSource = "exif";
       }
 
-      const location = await resolveLocation(photo.exif, origin);
+      const location = await resolveLocation(photo.exif, origin, { warm: warm.current, known: knownPos });
       setDraft({
         photo,
         previewUrl: URL.createObjectURL(photo.thumb),
