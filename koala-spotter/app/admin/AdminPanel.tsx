@@ -57,6 +57,42 @@ function inTab(s: AdminSighting, tab: Tab): boolean {
   }
 }
 
+const HOUR = 3600_000;
+
+/** Usage figures worked out from the sightings list. */
+function summarise(sightings: AdminSighting[], now: number) {
+  const since = (h: number) => sightings.filter((s) => now - new Date(s.created_at).getTime() < h * HOUR);
+  const sum = (key: "still_here_count" | "not_found_count" | "flag_count") =>
+    sightings.reduce((n, s) => n + s[key], 0);
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(now - i * 24 * HOUR);
+    const label = day.toLocaleDateString(undefined, { weekday: "short", day: "numeric" });
+    const count = sightings.filter((s) => new Date(s.created_at).toDateString() === day.toDateString()).length;
+    return { label, count };
+  }).reverse();
+  return {
+    reports24h: since(24).length,
+    reports7d: since(24 * 7).length,
+    reportsAll: sightings.length,
+    reporters: new Set(sightings.map((s) => s.device_id).filter(Boolean)).size,
+    stillHere: sum("still_here_count"),
+    notFound: sum("not_found_count"),
+    flags: sum("flag_count"),
+    verified: sightings.filter((s) => s.verified).length,
+    days,
+  };
+}
+
+function Stat({ label, value, note }: { label: string; value: number; note?: string }) {
+  return (
+    <div className="rounded-xl border-2 border-line p-3">
+      <p className="text-sm font-semibold">{label}</p>
+      <p className="text-3xl font-extrabold tabular-nums">{value}</p>
+      {note && <p className="text-xs">{note}</p>}
+    </div>
+  );
+}
+
 export default function AdminPanel() {
   const [state, setState] = useState<"loading" | "login" | "ready">("loading");
   const [password, setPassword] = useState("");
@@ -64,6 +100,7 @@ export default function AdminPanel() {
   const [sightings, setSightings] = useState<AdminSighting[]>([]);
   const [tab, setTab] = useState<Tab>("attention");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [loadedAt, setLoadedAt] = useState(0);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/sightings", { cache: "no-store" });
@@ -78,6 +115,7 @@ export default function AdminPanel() {
       return;
     }
     setSightings(body.sightings);
+    setLoadedAt(Date.now());
     setError(null);
     setState("ready");
   }, []);
@@ -144,6 +182,7 @@ export default function AdminPanel() {
   }
 
   const shown = sightings.filter((s) => inTab(s, tab));
+  const stats = summarise(sightings, loadedAt);
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6">
@@ -161,7 +200,34 @@ export default function AdminPanel() {
         </button>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Filter">
+      <section aria-labelledby="usage-title" className="mt-5">
+        <h2 id="usage-title" className="text-lg font-extrabold">
+          Usage
+        </h2>
+        <p className="text-sm">Counted from the database, so ad blockers don&apos;t affect it. Includes hidden and expired posts.</p>
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat label="Reports, last 24 h" value={stats.reports24h} />
+          <Stat label="Reports, last 7 days" value={stats.reports7d} />
+          <Stat label="Reports, all time" value={stats.reportsAll} note={`${stats.verified} verified`} />
+          <Stat label="Phones that reported" value={stats.reporters} />
+          <Stat label="“Still here” votes" value={stats.stillHere} />
+          <Stat label="“Couldn’t find it” votes" value={stats.notFound} />
+          <Stat label="Flags" value={stats.flags} />
+        </div>
+        <div className="mt-3 rounded-xl border-2 border-line p-3">
+          <p className="text-sm font-semibold">Reports per day</p>
+          <ul className="mt-1 grid grid-cols-7 gap-1 text-center">
+            {stats.days.map((d) => (
+              <li key={d.label}>
+                <p className="text-xl font-extrabold tabular-nums">{d.count}</p>
+                <p className="text-xs">{d.label}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      <div className="mt-6 flex flex-wrap gap-2" role="group" aria-label="Filter">
         {(Object.keys(TAB_LABEL) as Tab[]).map((t) => (
           <button
             key={t}
